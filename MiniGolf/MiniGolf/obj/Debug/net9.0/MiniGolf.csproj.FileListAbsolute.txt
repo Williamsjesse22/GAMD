@@ -31,3 +31,4 @@ C:\Users\vwill\Documents\GAMD\MiniGolf\MiniGolf\obj\Debug\net9.0\refint\MiniGolf
 C:\Users\vwill\Documents\GAMD\MiniGolf\MiniGolf\obj\Debug\net9.0\MiniGolf.pdb
 C:\Users\vwill\Documents\GAMD\MiniGolf\MiniGolf\obj\Debug\net9.0\MiniGolf.genruntimeconfig.cache
 C:\Users\vwill\Documents\GAMD\MiniGolf\MiniGolf\obj\Debug\net9.0\ref\MiniGolf.dll
+C:\Users\vwill\Documents\GAMD\MiniGolf\MiniGolf\obj\Debug\net9.0\MiniGolf.sourcelink.json
