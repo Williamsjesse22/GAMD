@@ -29,6 +29,7 @@ public class Game1 : Game
     private Course _course = null!;
     private HudComponent _hud = null!;
     private Texture2D _pixel = null!;
+    private DebrisSpawner _debrisSpawner = null!;
     private readonly AudioManager _audio = new();
 
     private GameState _state = GameState.PreRace;
@@ -67,7 +68,12 @@ public class Game1 : Game
         _ship = new Ship(this, _world, _renderer, _camera, SpawnPosition);
         Components.Add(_ship);
 
-        _shipController = new ShipController(this, _ship, _camera);
+        _shipController = new ShipController(this, _ship, _camera)
+        {
+            // Bonus #4: fuel mode on. Ship burns 5%/sec at full thrust; pitstops refuel.
+            RequireFuel = true,
+            FuelBurnRate = 0.05f,
+        };
         Components.Add(_shipController);
 
         _audio.Load(Content);
@@ -79,10 +85,39 @@ public class Game1 : Game
         _course.RingPassed += _audio.PlayRingPass;
         _course.RaceFinished += OnRaceFinished;
 
+        // Bonus #4: pitstops along the course. Two midcourse refuel rings, oriented
+        // perpendicular to the flight path so the ship can fly through naturally.
+        var pitstop1 = new Pitstop(this, _ship, _renderer,
+            position: new Vector3(8, 0, -75),
+            orientation: Quaternion.Identity);
+        var pitstop2 = new Pitstop(this, _ship, _renderer,
+            position: new Vector3(-10, 4, -160),
+            orientation: Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.3f));
+        Components.Add(pitstop1);
+        Components.Add(pitstop2);
+
+        // Bonus #5: gravity wells. Two purple wells pull the ship if it strays close.
+        var well1 = new GravityWell(this, _ship, _renderer,
+            position: new NumericsVector3(-5, -3, -45), strength: 280f);
+        var well2 = new GravityWell(this, _ship, _renderer,
+            position: new NumericsVector3(12, 2, -135), strength: 320f);
+        Components.Add(well1);
+        Components.Add(well2);
+
+        // Bonus #3: space debris drifting across the course.
+        _debrisSpawner = new DebrisSpawner(this, _world, _renderer)
+        {
+            SpawnsPerSecond = 0.5f,
+            CourseCenter = new NumericsVector3(0, 0, -110),
+            CourseRadius = 220f,
+        };
+        Components.Add(_debrisSpawner);
+
         _hud = new HudComponent(this, _spriteBatch, _pixel)
         {
             RingCount = _course.Rings.Count,
             CountdownSeconds = CountdownSeconds,
+            ShowFuel = true,
         };
         Components.Add(_hud);
     }
@@ -98,6 +133,7 @@ public class Game1 : Game
         float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
         _world.Step(dt);
         _camera.Follow(_ship.Pose);
+        _audio.Tick(dt);
 
         switch (_state)
         {
@@ -126,6 +162,7 @@ public class Game1 : Game
         _hud.MissedCount = _course.MissedCount;
         _hud.CurrentTargetIndex = _course.CurrentTargetIndex;
         _hud.Score = HudComponent.ComputeScore(_raceTime, _course.MissedCount);
+        _hud.Fuel = _ship.Fuel;
 
         _previousKeyboard = keyboard;
         base.Update(gameTime);
@@ -149,6 +186,7 @@ public class Game1 : Game
         bodyRef.Awake = true;
 
         _course.Reset();
+        _ship.Fuel = 1f;
         _raceTime = 0f;
         _countdownRemaining = CountdownSeconds;
         _state = GameState.PreRace;

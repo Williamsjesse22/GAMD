@@ -1,37 +1,84 @@
 using System;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using SpaceRace.Graphics;
 using SpaceRace.Physics;
 
 namespace SpaceRace.GameObjects;
 
 /// <summary>
-/// HOOK (bonus feature: fuel + pitstops). Reuses the generic
-/// <see cref="Trigger"/> volume to detect ship pass-through. Subscribers wire
-/// into <see cref="OnPassed"/> to apply a fuel refill or other effect.
-/// Not spawned in v1; turn on by instantiating in <c>Game1.LoadContent</c>.
+/// A small green ring the ship can fly through to refuel. Reuses the generic
+/// <see cref="Trigger"/> pass-through volume; visually a smaller torus than
+/// race rings, with a green glow accent so it's distinct.
 /// </summary>
-public sealed class Pitstop
+public sealed class Pitstop : DrawableGameComponent
 {
-    /// <summary>Pass-through volume — same geometry as a ring, smaller radius.</summary>
+    private readonly Ship _ship;
+    private readonly PrimitiveRenderer _renderer;
+    private readonly VertexBuffer _vb;
+    private readonly IndexBuffer _ib;
+    private readonly Matrix _world;
+
+    /// <summary>Pass-through volume.</summary>
     public Trigger Trigger { get; }
 
-    /// <summary>Amount of fuel restored on a successful pass (0..1).</summary>
-    public float RefuelAmount { get; set; } = 0.5f;
+    /// <summary>Fuel restored per pass (0..1).</summary>
+    public float RefuelAmount { get; set; } = 0.6f;
 
-    /// <summary>Fired when the ship passes through this pitstop in the +Axis direction.</summary>
+    /// <summary>Fired after a successful pass-through.</summary>
     public event Action<Ship>? OnPassed;
 
-    public Pitstop(Vector3 center, Vector3 axis, float innerRadius)
+    private Vector3 _previousShipPosition;
+    private bool _hasPreviousPosition;
+
+    public Pitstop(Game game, Ship ship, PrimitiveRenderer renderer,
+        Vector3 position, Quaternion orientation,
+        float majorRadius = 2f, float minorRadius = 0.2f) : base(game)
     {
-        Trigger = new Trigger(center, axis, innerRadius);
+        _ship = ship;
+        _renderer = renderer;
+        DrawOrder = 8;
+
+        Vector3 axis = Vector3.Transform(Vector3.UnitZ, orientation);
+        Trigger = new Trigger(position, axis, majorRadius - minorRadius * 0.5f);
+
+        _world = Matrix.CreateFromQuaternion(orientation) * Matrix.CreateTranslation(position);
+        var mesh = MeshFactory.CreateTorus(majorRadius, minorRadius);
+        (_vb, _ib) = mesh.ToGpu(GraphicsDevice);
     }
 
-    /// <summary>Game1 hook: call each tick with the ship's previous and current positions.</summary>
-    public void Tick(Ship ship, Vector3 previousShipPosition, Vector3 currentShipPosition)
+    public override void Update(GameTime gameTime)
     {
-        if (!Trigger.TryPassThrough(previousShipPosition, currentShipPosition, out int direction)) return;
-        if (direction <= 0) return;
-        ship.Fuel = MathHelper.Clamp(ship.Fuel + RefuelAmount, 0f, 1f);
-        OnPassed?.Invoke(ship);
+        Vector3 shipPos = ToXna(_ship.Pose.Position);
+        if (!_hasPreviousPosition)
+        {
+            _previousShipPosition = shipPos;
+            _hasPreviousPosition = true;
+            return;
+        }
+        if (Trigger.TryPassThrough(_previousShipPosition, shipPos, out _))
+        {
+            _ship.Fuel = MathHelper.Clamp(_ship.Fuel + RefuelAmount, 0f, 1f);
+            OnPassed?.Invoke(_ship);
+        }
+        _previousShipPosition = shipPos;
+    }
+
+    public override void Draw(GameTime gameTime)
+    {
+        _renderer.DrawMesh(_vb, _ib, _world, new Color(140, 230, 140));
+        _renderer.DrawGlow(_vb, _ib, _world, new Color(80, 220, 100), scale: 1.06f);
+    }
+
+    private static Vector3 ToXna(System.Numerics.Vector3 v) => new(v.X, v.Y, v.Z);
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _vb.Dispose();
+            _ib.Dispose();
+        }
+        base.Dispose(disposing);
     }
 }

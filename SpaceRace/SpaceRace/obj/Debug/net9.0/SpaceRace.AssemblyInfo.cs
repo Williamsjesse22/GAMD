@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SpaceRace")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7ec22a7eabfc296dd594bd2f9164f4fa742b415d")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+cc573bf8b7bf9637ef8ed9bc356e689ca35f6ac7")]
 [assembly: System.Reflection.AssemblyProductAttribute("SpaceRace")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SpaceRace")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

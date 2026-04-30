@@ -40,6 +40,12 @@ public sealed class HudComponent : DrawableGameComponent
     /// <summary>Final score; computed by Game1 each Update via <see cref="ComputeScore"/>.</summary>
     public int Score { get; set; }
 
+    /// <summary>Current fuel level 0..1. Only rendered when <see cref="ShowFuel"/> is true.</summary>
+    public float Fuel { get; set; } = 1f;
+
+    /// <summary>Whether to render the fuel bar (set true when fuel mode is active).</summary>
+    public bool ShowFuel { get; set; }
+
     public HudComponent(Game game, SpriteBatch spriteBatch, Texture2D pixel) : base(game)
     {
         _spriteBatch = spriteBatch;
@@ -79,6 +85,31 @@ public sealed class HudComponent : DrawableGameComponent
                      new Vector2(20, 60), new Color(220, 220, 240), scale: 2);
         DrawText($"MISSED {MissedCount}", new Vector2(20, 90), new Color(240, 200, 120), scale: 2);
         DrawText($"SCORE {Score}", new Vector2(20, 120), Color.White, scale: 2);
+
+        if (ShowFuel) DrawFuelBar();
+    }
+
+    private void DrawFuelBar()
+    {
+        const int barX = 20, barW = 220, barH = 14;
+        int barY = 670;
+        // Background.
+        _spriteBatch.Draw(_pixel, new Rectangle(barX, barY, barW, barH), new Color(40, 40, 40));
+        // Fill: green→yellow→red as fuel drops.
+        float t = MathHelper.Clamp(Fuel, 0f, 1f);
+        Color fill = new(
+            (byte)((1f - t) * 240),
+            (byte)(t * 220),
+            40);
+        int fillW = (int)(barW * t);
+        _spriteBatch.Draw(_pixel, new Rectangle(barX, barY, fillW, barH), fill);
+        // Outline.
+        _spriteBatch.Draw(_pixel, new Rectangle(barX, barY, barW, 1), Color.White);
+        _spriteBatch.Draw(_pixel, new Rectangle(barX, barY + barH - 1, barW, 1), Color.White);
+        _spriteBatch.Draw(_pixel, new Rectangle(barX, barY, 1, barH), Color.White);
+        _spriteBatch.Draw(_pixel, new Rectangle(barX + barW - 1, barY, 1, barH), Color.White);
+        // Label.
+        DrawText("FUEL", new Vector2(barX, barY - 22), Color.White, scale: 2);
     }
 
     private void DrawCountdownOverlay()
