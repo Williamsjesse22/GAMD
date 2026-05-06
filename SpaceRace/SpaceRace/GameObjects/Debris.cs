@@ -31,6 +31,15 @@ public sealed class Debris : DrawableGameComponent
     /// <summary>True once <see cref="RemainingLifetime"/> hits 0.</summary>
     public bool IsExpired => RemainingLifetime <= 0f;
 
+    /// <summary>Current world-space position (read from the Bepu body).</summary>
+    public NumVector3 Position => _world.Simulation.Bodies[BodyHandle].Pose.Position;
+
+    /// <summary>Approximate collision radius (sphere).</summary>
+    public float Radius { get; }
+
+    /// <summary>Mark for immediate removal next spawner tick (used by laser hits).</summary>
+    public void Kill() => RemainingLifetime = 0f;
+
     public Debris(Game game, BepuWorld world, PrimitiveRenderer renderer,
         NumVector3 spawnPosition, NumVector3 initialVelocity,
         float radius, float lifetime, Color color) : base(game)
@@ -38,6 +47,7 @@ public sealed class Debris : DrawableGameComponent
         _world = world;
         _renderer = renderer;
         _color = color;
+        Radius = radius;
         RemainingLifetime = lifetime;
         DrawOrder = 5;
 

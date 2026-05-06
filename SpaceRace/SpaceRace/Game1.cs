@@ -30,6 +30,8 @@ public class Game1 : Game
     private HudComponent _hud = null!;
     private Texture2D _pixel = null!;
     private DebrisSpawner _debrisSpawner = null!;
+    private ProjectileManager _projectileManager = null!;
+    private CollisionTracker _collisionTracker = null!;
     private readonly AudioManager _audio = new();
 
     private GameState _state = GameState.PreRace;
@@ -73,13 +75,16 @@ public class Game1 : Game
             // Bonus #4: fuel mode on. Ship burns 5%/sec at full thrust; pitstops refuel.
             RequireFuel = true,
             FuelBurnRate = 0.05f,
+            // Bonus #1: laser fire enabled.
+            CanFire = true,
         };
         Components.Add(_shipController);
 
         _audio.Load(Content);
 
+        // Course rings now own a Bepu Mesh static for the rim (bonus #2: physical rim).
         _course = new Course(this, _ship);
-        _course.Build(_renderer);
+        _course.Build(_world, _renderer);
         foreach (var ring in _course.Rings) Components.Add(ring);
         Components.Add(_course);
         _course.RingPassed += _audio.PlayRingPass;
@@ -104,23 +109,44 @@ public class Game1 : Game
         Components.Add(well1);
         Components.Add(well2);
 
-        // Bonus #3: space debris drifting across the course.
+        // Bonus #3: space debris drifting across the course. Spawn near the
+        // course path at a moderate rate so the player actually sees them.
         _debrisSpawner = new DebrisSpawner(this, _world, _renderer)
         {
-            SpawnsPerSecond = 0.5f,
+            SpawnsPerSecond = 1.5f,
             CourseCenter = new NumericsVector3(0, 0, -110),
-            CourseRadius = 220f,
+            CourseRadius = 90f,
+            DriftSpeed = 18f,
         };
         Components.Add(_debrisSpawner);
+
+        // Bonus #1: projectile lifecycle + projectile-vs-debris detection.
+        _projectileManager = new ProjectileManager(this, _world, _renderer, _debrisSpawner);
+        Components.Add(_projectileManager);
+        _shipController.ProjectileManager = _projectileManager;
+
+        // Bonus #3 + #4: ship-vs-debris/rim collisions, with shield absorption + score penalty.
+        _collisionTracker = new CollisionTracker(this, _ship, _course, _debrisSpawner)
+        {
+            PenaltyPerHit = 15,
+            ShipHullRadius = 1.0f,
+        };
+        _collisionTracker.OnHit = () => _audio.PlayHit(GetCurrentSeconds());
+        Components.Add(_collisionTracker);
 
         _hud = new HudComponent(this, _spriteBatch, _pixel)
         {
             RingCount = _course.Rings.Count,
             CountdownSeconds = CountdownSeconds,
             ShowFuel = true,
+            ShowCombatStats = true,
+            MaxShieldCharges = _ship.MaxShieldCharges,
         };
         Components.Add(_hud);
     }
+
+    private double _currentSeconds;
+    private double GetCurrentSeconds() => _currentSeconds;
 
     protected override void Update(GameTime gameTime)
     {
@@ -131,6 +157,7 @@ public class Game1 : Game
         if (rJustPressed && _state == GameState.Finished) RestartRace();
 
         float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+        _currentSeconds = gameTime.TotalGameTime.TotalSeconds;
         _world.Step(dt);
         _camera.Follow(_ship.Pose);
         _audio.Tick(dt);
@@ -161,8 +188,15 @@ public class Game1 : Game
         _hud.CountdownSeconds = _countdownRemaining;
         _hud.MissedCount = _course.MissedCount;
         _hud.CurrentTargetIndex = _course.CurrentTargetIndex;
-        _hud.Score = HudComponent.ComputeScore(_raceTime, _course.MissedCount);
+        _hud.Score = HudComponent.ComputeScore(
+            _raceTime,
+            _course.MissedCount,
+            _collisionTracker.CollisionPenalty,
+            _projectileManager.DebrisShotCount);
         _hud.Fuel = _ship.Fuel;
+        _hud.ShieldCharges = _ship.ShieldCharges;
+        _hud.CollisionCount = _collisionTracker.CollisionCount;
+        _hud.DebrisShotCount = _projectileManager.DebrisShotCount;
 
         _previousKeyboard = keyboard;
         base.Update(gameTime);
@@ -187,6 +221,9 @@ public class Game1 : Game
 
         _course.Reset();
         _ship.Fuel = 1f;
+        _ship.ShieldCharges = _ship.MaxShieldCharges;
+        _projectileManager.Reset();
+        _collisionTracker.Reset();
         _raceTime = 0f;
         _countdownRemaining = CountdownSeconds;
         _state = GameState.PreRace;

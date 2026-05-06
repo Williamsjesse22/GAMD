@@ -46,6 +46,21 @@ public sealed class HudComponent : DrawableGameComponent
     /// <summary>Whether to render the fuel bar (set true when fuel mode is active).</summary>
     public bool ShowFuel { get; set; }
 
+    /// <summary>Remaining shield charges (read from Ship). Only displayed when ShowShield is true.</summary>
+    public int ShieldCharges { get; set; }
+
+    /// <summary>Maximum shield charges (for HUD style). Only matters visually.</summary>
+    public int MaxShieldCharges { get; set; }
+
+    /// <summary>Show the shield + collision + shot counters (when laser/shield/collision systems are active).</summary>
+    public bool ShowCombatStats { get; set; }
+
+    /// <summary>Cumulative collisions taken (raw count, including shielded ones).</summary>
+    public int CollisionCount { get; set; }
+
+    /// <summary>Cumulative debris destroyed by player projectiles.</summary>
+    public int DebrisShotCount { get; set; }
+
     public HudComponent(Game game, SpriteBatch spriteBatch, Texture2D pixel) : base(game)
     {
         _spriteBatch = spriteBatch;
@@ -54,14 +69,20 @@ public sealed class HudComponent : DrawableGameComponent
     }
 
     /// <summary>
-    /// Score = max(0, max(0, 1000 - time) - 30·missed). Skipping a ring (~30 pts)
-    /// always costs more than the time saved. Clamped to 0 to keep the HUD clean.
+    /// Score formula:
+    ///   max(0, 1000 - time)
+    ///   - 30 * missedRings
+    ///   - collisionPenalty
+    ///   + 5 * debrisShot
+    /// Final result clamped to ≥ 0. Skipping rings or crashing always hurts;
+    /// shooting debris adds a small bonus to encourage interaction with the laser.
     /// </summary>
-    public static int ComputeScore(float timeSeconds, int missedCount)
+    public static int ComputeScore(float timeSeconds, int missedCount, int collisionPenalty = 0, int debrisShot = 0)
     {
         int timePart = Math.Max(0, 1000 - (int)timeSeconds);
-        int penalty = 30 * missedCount;
-        return Math.Max(0, timePart - penalty);
+        int penalty = 30 * missedCount + collisionPenalty;
+        int bonus = 5 * debrisShot;
+        return Math.Max(0, timePart - penalty + bonus);
     }
 
     public override void Draw(GameTime gameTime)
@@ -87,6 +108,19 @@ public sealed class HudComponent : DrawableGameComponent
         DrawText($"SCORE {Score}", new Vector2(20, 120), Color.White, scale: 2);
 
         if (ShowFuel) DrawFuelBar();
+        if (ShowCombatStats) DrawCombatStats();
+    }
+
+    private void DrawCombatStats()
+    {
+        // Top-right stack: SHIELD / HITS / SHOT
+        int x = 1280 - 280;
+        DrawText($"SHIELD {ShieldCharges}/{MaxShieldCharges}",
+                 new Vector2(x, 20), new Color(120, 200, 255), scale: 2);
+        DrawText($"HITS {CollisionCount}",
+                 new Vector2(x, 50), new Color(255, 140, 140), scale: 2);
+        DrawText($"SHOT {DebrisShotCount}",
+                 new Vector2(x, 80), new Color(255, 220, 100), scale: 2);
     }
 
     private void DrawFuelBar()

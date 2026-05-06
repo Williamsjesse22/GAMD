@@ -32,6 +32,12 @@ public sealed class Ship : DrawableGameComponent
     /// <summary>Remaining fuel (0..1). v1 leaves this full; bonus hook for fuel mode.</summary>
     public float Fuel { get; set; } = 1f;
 
+    /// <summary>Remaining shield charges. Each absorbs one collision penalty before being consumed.</summary>
+    public int ShieldCharges { get; set; } = 3;
+
+    /// <summary>Maximum shield charges (for HUD display + reset on race restart).</summary>
+    public int MaxShieldCharges { get; } = 3;
+
     public Ship(Game game, BepuWorld world, PrimitiveRenderer renderer, Camera camera,
         NumVector3 spawnPosition, float mass = 1f) : base(game)
     {

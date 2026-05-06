@@ -33,6 +33,9 @@ public sealed class DebrisSpawner : GameComponent
     /// <summary>Base drift speed (m/s); each debris randomized 0.5×–1.5× this value.</summary>
     public float DriftSpeed { get; set; } = 8f;
 
+    /// <summary>Read-only view of currently active debris bodies (for collision detection).</summary>
+    public IReadOnlyList<Debris> ActiveDebris => _active;
+
     public DebrisSpawner(Game game, BepuWorld world, PrimitiveRenderer renderer) : base(game)
     {
         _world = world;
@@ -66,7 +69,8 @@ public sealed class DebrisSpawner : GameComponent
         NumVector3 spawn = CourseCenter + dir * CourseRadius;
         float speed = DriftSpeed * (0.5f + (float)_rng.NextDouble());
         NumVector3 vel = -dir * speed;
-        float radius = 0.6f + 0.5f * (float)_rng.NextDouble();
+        // Bigger asteroids are easier to spot at distance.
+        float radius = 1.0f + 1.0f * (float)_rng.NextDouble();
         Color color = new(
             (byte)_rng.Next(110, 180),
             (byte)_rng.Next(80, 140),

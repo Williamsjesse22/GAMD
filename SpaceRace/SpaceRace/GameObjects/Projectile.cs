@@ -1,5 +1,8 @@
 using BepuPhysics;
 using BepuPhysics.Collidables;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using SpaceRace.Graphics;
 using SpaceRace.Physics;
 using NumQuaternion = System.Numerics.Quaternion;
 using NumVector3 = System.Numerics.Vector3;
@@ -7,41 +10,72 @@ using NumVector3 = System.Numerics.Vector3;
 namespace SpaceRace.GameObjects;
 
 /// <summary>
-/// HOOK (bonus feature: lasers / torpedoes). A small Bepu dynamic body fired
-/// from the ship along its forward axis. Has a finite lifetime; on expiry or
-/// collision it's removed. v1 disables firing in
-/// <see cref="Systems.ShipController.CanFire"/>.
+/// Small fast Bepu dynamic body fired from the ship's nose. Auto-expires after
+/// <see cref="RemainingLifetime"/> seconds. Rendered as a glowing yellow sphere.
+/// <see cref="ProjectileManager"/> owns spawning and collision-vs-debris.
 /// </summary>
-public sealed class Projectile
+public sealed class Projectile : DrawableGameComponent
 {
+    private readonly BepuWorld _world;
+    private readonly PrimitiveRenderer _renderer;
+    private readonly VertexBuffer _vb;
+    private readonly IndexBuffer _ib;
+
     public BodyHandle BodyHandle { get; }
     public float RemainingLifetime { get; private set; }
+    public bool IsExpired => RemainingLifetime <= 0f;
+    public bool IsConsumed { get; private set; }
+    public NumVector3 Position => _world.Simulation.Bodies[BodyHandle].Pose.Position;
 
-    private readonly BepuWorld _world;
-
-    public Projectile(BepuWorld world, NumVector3 position, NumQuaternion orientation,
-        float speed = 60f, float lifetime = 4f)
+    public Projectile(Game game, BepuWorld world, PrimitiveRenderer renderer,
+        NumVector3 spawnPos, NumVector3 velocity, float lifetime = 3f) : base(game)
     {
         _world = world;
+        _renderer = renderer;
         RemainingLifetime = lifetime;
+        DrawOrder = 6;
 
-        var sphere = new Sphere(0.15f);
-        var inertia = sphere.ComputeInertia(0.1f);
+        const float radius = 0.18f;
+        var sphere = new Sphere(radius);
+        var inertia = sphere.ComputeInertia(0.05f);
         var bodyDesc = BodyDescription.CreateDynamic(
-            new RigidPose(position, orientation),
+            new RigidPose(spawnPos, NumQuaternion.Identity),
             inertia,
             new CollidableDescription(world.Simulation.Shapes.Add(sphere), 0.05f),
             new BodyActivityDescription(0.01f));
         BodyHandle = world.Simulation.Bodies.Add(bodyDesc);
-
-        // Forward in ship-local convention is -Z; rotate by ship orientation to get world dir.
-        NumVector3 forward = NumVector3.Transform(new NumVector3(0f, 0f, -1f), orientation);
         var bodyRef = world.Simulation.Bodies[BodyHandle];
-        bodyRef.Velocity.Linear = forward * speed;
+        bodyRef.Velocity.Linear = velocity;
+
+        var mesh = MeshFactory.CreateSphere(radius * 1.4f, 6, 8);
+        (_vb, _ib) = mesh.ToGpu(GraphicsDevice);
     }
 
-    public void Tick(float dt) => RemainingLifetime -= dt;
-    public bool IsExpired => RemainingLifetime <= 0f;
+    public override void Update(GameTime gameTime)
+    {
+        RemainingLifetime -= (float)gameTime.ElapsedGameTime.TotalSeconds;
+    }
 
-    public void Remove() => _world.Simulation.Bodies.Remove(BodyHandle);
+    public override void Draw(GameTime gameTime)
+    {
+        var pose = _world.Simulation.Bodies[BodyHandle].Pose;
+        Matrix world = pose.ToWorldMatrix();
+        _renderer.DrawMesh(_vb, _ib, world, new Color(255, 200, 50));
+        _renderer.DrawGlow(_vb, _ib, world, new Color(255, 230, 100), scale: 1.6f);
+    }
+
+    /// <summary>Mark this projectile for removal after a hit.</summary>
+    public void Consume() => IsConsumed = true;
+
+    public void RemoveFromSimulation() => _world.Simulation.Bodies.Remove(BodyHandle);
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _vb.Dispose();
+            _ib.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

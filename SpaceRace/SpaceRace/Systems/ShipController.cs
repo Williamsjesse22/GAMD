@@ -19,6 +19,18 @@ public sealed class ShipController : GameComponent
 
     private KeyboardState _previousKeyboard;
     private GamePadState _previousGamepad;
+    private MouseState _previousMouse;
+
+    /// <summary>Optional projectile manager. When set + <see cref="CanFire"/>, LMB fires.</summary>
+    public ProjectileManager? ProjectileManager { get; set; }
+
+    /// <summary>Initial projectile speed in m/s (added to ship's current velocity).</summary>
+    public float ProjectileSpeed { get; set; } = 60f;
+
+    /// <summary>Min seconds between consecutive shots (anti-spam).</summary>
+    public float FireCooldownSeconds { get; set; } = 0.18f;
+
+    private float _fireCooldownRemaining;
 
     /// <summary>Forward thrust in m/s² when the thrust input is fully on.</summary>
     public float ThrustAcceleration { get; set; } = 18f;
@@ -120,7 +132,41 @@ public sealed class ShipController : GameComponent
         // Wake the body so impulses are honored even if it had been sleeping.
         bodyRef.Awake = true;
 
+        // ===== Laser fire (LMB or gamepad RB), edge-triggered with cooldown =====
+        if (_fireCooldownRemaining > 0f) _fireCooldownRemaining -= dt;
+        if (CanFire && ProjectileManager != null && _fireCooldownRemaining <= 0f)
+        {
+            var mouse = Mouse.GetState();
+            bool lmbEdge = mouse.LeftButton == ButtonState.Pressed
+                           && _previousMouse.LeftButton != ButtonState.Pressed;
+            bool padEdge = gamepad.IsConnected
+                           && gamepad.Buttons.RightShoulder == ButtonState.Pressed
+                           && _previousGamepad.Buttons.RightShoulder != ButtonState.Pressed;
+            if (lmbEdge || padEdge)
+            {
+                FireProjectile(bodyRef);
+                _fireCooldownRemaining = FireCooldownSeconds;
+            }
+            _previousMouse = mouse;
+        }
+        else
+        {
+            _previousMouse = Mouse.GetState();
+        }
+
         _previousKeyboard = keyboard;
         _previousGamepad = gamepad;
+    }
+
+    private void FireProjectile(BepuPhysics.BodyReference bodyRef)
+    {
+        var orientation = bodyRef.Pose.Orientation;
+        // Forward in ship-local convention is -Z; rotate by orientation for world dir.
+        NumVector3 forward = NumVector3.Transform(new NumVector3(0, 0, -1), orientation);
+        // Spawn slightly ahead of the nose so the projectile doesn't collide with the ship.
+        NumVector3 spawn = bodyRef.Pose.Position + forward * 1.6f;
+        // Inherit ship velocity so projectile moves relative to ship's frame.
+        NumVector3 velocity = bodyRef.Velocity.Linear + forward * ProjectileSpeed;
+        ProjectileManager!.Fire(spawn, velocity);
     }
 }

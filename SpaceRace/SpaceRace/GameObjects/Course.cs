@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using SpaceRace.Graphics;
+using SpaceRace.Physics;
 
 namespace SpaceRace.GameObjects;
 
@@ -41,7 +42,7 @@ public sealed class Course : GameComponent
     /// Build the canonical 8-ring course. Caller must add each <see cref="Ring"/>
     /// to <c>Game.Components</c> after this returns (so they receive Draw calls).
     /// </summary>
-    public void Build(PrimitiveRenderer renderer)
+    public void Build(BepuWorld bepuWorld, PrimitiveRenderer renderer)
     {
         // 8-ring path: starts in front of the ship, climbs, banks left, dives,
         // returns to center. Each ring has a different orientation so the player
@@ -62,7 +63,7 @@ public sealed class Course : GameComponent
         {
             var orientation = Quaternion.CreateFromYawPitchRoll(
                 layout[i].AxisEuler.Y, layout[i].AxisEuler.X, layout[i].AxisEuler.Z);
-            var ring = new Ring(Game, renderer, layout[i].Position, orientation);
+            var ring = new Ring(Game, bepuWorld, renderer, layout[i].Position, orientation);
             Rings.Add(ring);
         }
         RefreshActiveFlags();
