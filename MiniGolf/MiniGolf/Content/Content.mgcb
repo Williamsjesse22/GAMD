@@ -13,3 +13,7 @@
 
 #---------------------------------- Content ---------------------------------#
 
+# Sound effects (strike/bounce/drop) are loaded directly from raw .wav files
+# via Systems/WavLoader so the AudioManager can apply a per-clip offset to
+# skip leading silence. They are copied to the output directory by an
+# <ItemGroup> in MiniGolf.csproj rather than processed through MGCB.

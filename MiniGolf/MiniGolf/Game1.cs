@@ -139,6 +139,8 @@ public class Game1 : Game
         _lastUpdateSeconds = gameTime.TotalGameTime.TotalSeconds;
 
         float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+        _audio.Tick(dt);
+
         if (_state == GameState.BallMoving)
         {
             float subDt = dt / PhysicsSubSteps;

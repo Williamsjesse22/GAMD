@@ -15,8 +15,21 @@ public sealed class HoleLayout
     /// <summary>Display name (e.g. "Hole 1: Classic"). Optional.</summary>
     public string Name { get; init; } = string.Empty;
 
-    /// <summary>Background fairway rectangle in world pixels.</summary>
+    /// <summary>
+    /// Background fairway rectangle in world pixels. Used as the single fairway
+    /// region when <see cref="FairwayRegions"/> is empty (most holes), and as
+    /// the camera/HUD bounding box for all holes.
+    /// </summary>
     public Rectangle Fairway { get; init; }
+
+    /// <summary>
+    /// Optional multi-rectangle fairway. When non-empty, the green grass is drawn
+    /// from THIS list instead of <see cref="Fairway"/>, allowing non-rectangular
+    /// hole shapes (L, T, +, etc.) composed of overlapping or adjacent rectangles.
+    /// The walls in <see cref="Walls"/> still constrain the ball — make sure the
+    /// fairway regions match the walled-in playable area.
+    /// </summary>
+    public List<Rectangle> FairwayRegions { get; } = new();
 
     /// <summary>Wall rectangles (outer + inner dividers). Drawn in the wall color.</summary>
     public List<AabbCollider> Walls { get; } = new();

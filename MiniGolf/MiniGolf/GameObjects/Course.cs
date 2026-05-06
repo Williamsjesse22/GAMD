@@ -36,8 +36,11 @@ public sealed class Course : DrawableGameComponent
     /// <summary>The tee for this course.</summary>
     public Tee Tee { get; private set; } = null!;
 
-    /// <summary>Background / playing-field rectangle, fairway green.</summary>
+    /// <summary>Background / playing-field bounding rectangle (used for camera/HUD).</summary>
     public Rectangle Fairway { get; private set; }
+
+    /// <summary>Optional multi-rect fairway. Drawn instead of <see cref="Fairway"/> when non-empty.</summary>
+    public List<Rectangle> FairwayRegions { get; } = new();
 
     /// <summary>Display name of the loaded hole, for HUD.</summary>
     public string LayoutName { get; private set; } = string.Empty;
@@ -62,8 +65,10 @@ public sealed class Course : DrawableGameComponent
         Slopes.Clear();
         StaticBoxes.Clear();
         Obstacles.Clear();
+        FairwayRegions.Clear();
 
         Fairway = layout.Fairway;
+        FairwayRegions.AddRange(layout.FairwayRegions);
         LayoutName = layout.Name;
 
         Color wallColor = new(80, 80, 90);
@@ -90,7 +95,18 @@ public sealed class Course : DrawableGameComponent
     {
         _spriteBatch.Begin();
 
-        _spriteBatch.Draw(_pixel, Fairway, new Color(40, 130, 60));
+        // Multi-region fairway (for L/T/+/etc shapes) takes precedence; fall back
+        // to the single bounding-box rect for the standard rectangular holes.
+        Color fairwayColor = new(40, 130, 60);
+        if (FairwayRegions.Count > 0)
+        {
+            for (int i = 0; i < FairwayRegions.Count; i++)
+                _spriteBatch.Draw(_pixel, FairwayRegions[i], fairwayColor);
+        }
+        else
+        {
+            _spriteBatch.Draw(_pixel, Fairway, fairwayColor);
+        }
 
         for (int i = 0; i < Slopes.Count; i++)
         {

@@ -20,13 +20,15 @@ public static class HoleFactory
     private const int FieldH = 620;
     private const int WallThickness = 16;
 
-    /// <summary>The 4-hole sequence used by Game1: Classic → Funnel → Procedural → Chaos.</summary>
+    /// <summary>The 6-hole sequence used by Game1: Classic → Funnel → Procedural → Chaos → Corridor → L-Shape.</summary>
     public static List<HoleLayout> BuildAll(Random rng) => new()
     {
         Hole1Classic(),
         Hole2Funnel(),
         Hole3Procedural(rng),
         Hole4Chaos(rng),
+        Hole5Corridor(),
+        Hole6LShape(),
     };
 
     /// <summary>Hole 1: L-shape with a divider creating a bank shot, one uphill + one downhill.</summary>
@@ -116,6 +118,124 @@ public static class HoleFactory
         {
             Cells = cells,
         });
+
+        return layout;
+    }
+
+    /// <summary>
+    /// Hole 5: a Z-shaped pathway corridor. Two horizontal walls divide the
+    /// field into three lanes; the player must thread tee → right → up → left →
+    /// up → right → hole, taking two 90° turns to navigate. Tests bank shots
+    /// and shot-power tuning more than the open holes.
+    /// </summary>
+    /// <remarks>
+    /// Layout (Y down, X right):
+    /// <code>
+    /// +---------------------------------------+
+    /// |                                       |  ← top lane (hole at right)
+    /// |              [downhill]      H        |
+    /// | --------------------------- ===== W2  |  Wall 2 (gap on far LEFT)
+    /// |                                       |  ← middle lane (ball goes left)
+    /// |                       [obstacle]      |
+    /// | W1 =============================----  |  Wall 1 (gap on far RIGHT)
+    /// |                                       |  ← bottom lane (tee on left)
+    /// |  T                                    |
+    /// +---------------------------------------+
+    /// </code>
+    /// </remarks>
+    public static HoleLayout Hole5Corridor()
+    {
+        var layout = new HoleLayout
+        {
+            Name = "CORRIDOR",
+            Fairway = new Rectangle(FieldX, FieldY, FieldW, FieldH),
+            TeeRect = new Rectangle(180, 580, 40, 30),
+            HolePosition = new Vector2(1100, 200),
+        };
+        AddOuterWalls(layout);
+
+        // Wall 1: ceiling of the bottom lane. Spans the field's left edge to x=816,
+        // leaving a ~398px gap on the right (x=816 to x=1214) for the ball to turn UP.
+        layout.Walls.Add(new AabbCollider(66, 450, 750, WallThickness));
+
+        // Wall 2: ceiling of the middle lane. Spans x=400 to x=1214,
+        // leaving a ~334px gap on the left (x=66 to x=400) for the ball to turn UP again.
+        layout.Walls.Add(new AabbCollider(400, 300, 814, WallThickness));
+
+        // Obstacle in the middle lane — the ball passes around it traveling left.
+        layout.Obstacles.Add((new AabbCollider(800, 360, 60, 60), new Color(170, 110, 60)));
+
+        // Downhill (green) in the top lane, pushing east toward the hole — gives
+        // a forgiving final segment if the player undershoots the third leg.
+        layout.Slopes.Add(new SlopeRegion(
+            position: new Vector2(880, 130),
+            size: new Vector2(220, 80),
+            acceleration: new Vector2(180f, 0f),
+            tint: new Color(60, 200, 90, 170),
+            label: "DOWNHILL"));
+
+        return layout;
+    }
+
+    /// <summary>
+    /// Hole 6: an actual L-shaped fairway (not a rectangle with internal walls).
+    /// Composed of two overlapping rectangles — a tall narrow column on the left
+    /// and a wide bar across the bottom — so the green grass itself bends 90°.
+    /// The four no-go corners outside the L are filled with solid wall blocks,
+    /// making the L visually unmistakable.
+    /// </summary>
+    /// <remarks>
+    /// Layout (Y down, X right):
+    /// <code>
+    /// +--------+#######################+
+    /// |        |#### no-go region #####|
+    /// |   T    |#######################|
+    /// |        |#######################|
+    /// |        +-----------------------+   ← L-corner bend
+    /// |                                |
+    /// |                       H        |
+    /// |                                |
+    /// +--------------------------------+
+    /// </code>
+    /// </remarks>
+    public static HoleLayout Hole6LShape()
+    {
+        var layout = new HoleLayout
+        {
+            Name = "L-SHAPE",
+            // Bounding rect — used for HUD/camera even though the playable area is L-shaped.
+            Fairway = new Rectangle(FieldX, FieldY, FieldW, FieldH),
+            TeeRect = new Rectangle(180, 100, 40, 30),
+            HolePosition = new Vector2(1100, 530),
+        };
+
+        // Multi-region fairway: vertical bar (left column) + horizontal bar (bottom band).
+        // They overlap in the bottom-left corner — that's the L's bend.
+        layout.FairwayRegions.Add(new Rectangle(66, 66, 318, 588));   // vertical bar interior
+        layout.FairwayRegions.Add(new Rectangle(66, 416, 1148, 238)); // horizontal bar interior
+
+        // L-perimeter walls (6 segments tracing the outline of the L).
+        layout.Walls.Add(new AabbCollider(50, 50, 350, WallThickness));    // top of vertical bar
+        layout.Walls.Add(new AabbCollider(50, 50, WallThickness, 620));    // left side (full L height)
+        layout.Walls.Add(new AabbCollider(384, 50, WallThickness, 350));   // right of vertical bar
+        layout.Walls.Add(new AabbCollider(384, 400, 830, WallThickness));  // top of horizontal bar (the "step")
+        layout.Walls.Add(new AabbCollider(1214, 400, WallThickness, 254)); // right side of horizontal bar
+        layout.Walls.Add(new AabbCollider(50, 654, 1180, WallThickness));  // bottom of L
+
+        // Single big block filling the no-go top-right rectangle (where the L is "missing").
+        // Drawn in the wall color so it visually reads as solid stone.
+        layout.Walls.Add(new AabbCollider(400, 66, 814, 334));
+
+        // Obstacle in the horizontal bar to add a navigation challenge.
+        layout.Obstacles.Add((new AabbCollider(700, 480, 60, 60), new Color(170, 110, 60)));
+
+        // Downhill slope near the hole — pushes ball east into the cup.
+        layout.Slopes.Add(new SlopeRegion(
+            position: new Vector2(900, 460),
+            size: new Vector2(220, 80),
+            acceleration: new Vector2(180f, 0f),
+            tint: new Color(60, 200, 90, 170),
+            label: "DOWNHILL"));
 
         return layout;
     }
